@@ -25,7 +25,21 @@ public struct StudyItem: Codable, Equatable {
         category: StudyCategory,
         isCompleted: Bool = false
     ) throws {
-        fatalError("Implement StudyItem validation")
+        if title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            throw StudyPlanError.blankTitle
+        }
+        if estimatedMinutes <= 0 {
+            throw StudyPlanError.nonPositiveEstimatedMinutes
+        }
+        self.id = id
+        self.title = title
+        self.estimatedMinutes = estimatedMinutes
+        self.category = category
+        self.isCompleted = isCompleted
+    }
+
+    public mutating func markAsCompleted() {
+        self.isCompleted = true
     }
 }
 
@@ -33,7 +47,19 @@ public struct StudyPlan: Codable, Equatable {
     public private(set) var items: [StudyItem]
 
     public init(items: [StudyItem]) throws {
-        fatalError("Implement plan validation")
+        var seen = Set<String>()
+        for item in items {
+            if seen.contains(item.id) {
+                throw StudyPlanError.duplicateID(item.id)
+            }
+            seen.insert(item.id)
+        }
+        self.items = items.sorted { lhs, rhs in
+            if lhs.title != rhs.title {
+                return lhs.title < rhs.title
+            }
+            return lhs.id < rhs.id
+        }
     }
 
     public static func decode(from data: Data) throws -> StudyPlan {
@@ -41,15 +67,18 @@ public struct StudyPlan: Codable, Equatable {
     }
 
     public func items(in category: StudyCategory) -> [StudyItem] {
-        fatalError("Implement category query")
+        return items.filter { $0.category == category }
     }
 
     public func incompleteMinutes() -> Int {
-        fatalError("Implement incomplete-minute query")
+        return items.filter { !$0.isCompleted }.map { $0.estimatedMinutes }.reduce(0, +)
     }
 
     public mutating func markCompleted(id: String) throws {
-        fatalError("Implement completion mutation")
+        guard let index = items.firstIndex(where: { $0.id == id }) else {
+            throw StudyPlanError.unknownID(id)
+        }
+        items[index].markAsCompleted()
     }
 
     public mutating func importMerging(_ importedItems: [StudyItem]) throws {
